@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cute Tower Defense</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;700&display=swap"
+        rel="stylesheet">
+</head>
+
+<body>
+    <div id="game-container">
+        <div id="ui-layer">
+            <div id="top-bar">
+                <div class="player-stats" id="my-stats">
+                    <div class="stat health">❤️ <span id="my-health">20</span></div>
+                    <div class="stat resource">💎 <span id="my-resource">100</span></div>
+                </div>
+                <div id="game-message">Waiting for opponent...</div>
+                <div class="player-stats" id="opponent-stats">
+                    <div class="stat health">❤️ <span id="opp-health">20</span></div>
+                    <div class="stat resource">💎 <span id="opp-resource">???</span></div>
+                </div>
+            </div>
+
+            <div id="bottom-bar">
+                <div id="tower-panel">
+                    <h3>Defend</h3>
+                    <div class="unit-btn" data-type="tower_basic" onclick="selectTower('tower_basic')">
+                        <div class="icon">🏹</div>
+                        <div class="cost">50</div>
+                    </div>
+                    <div class="unit-btn" data-type="tower_rapid" onclick="selectTower('tower_rapid')">
+                        <div class="icon">🔫</div>
+                        <div class="cost">120</div>
+                    </div>
+                    <div class="unit-btn" data-type="tower_slow" onclick="selectTower('tower_slow')">
+                        <div class="icon">❄️</div>
+                        <div class="cost">150</div>
+                    </div>
+                </div>
+
+                <div id="monster-panel">
+                    <h3>Attack</h3>
+                    <div class="unit-btn" data-type="monster_fast" onclick="spawnMonster('monster_fast')">
+                        <div class="icon">🐰</div>
+                        <div class="cost">30</div>
+                    </div>
+                    <div class="unit-btn" data-type="monster_tank" onclick="spawnMonster('monster_tank')">
+                        <div class="icon">🐼</div>
+                        <div class="cost">80</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <canvas id="game-canvas"></canvas>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="js/entities.js"></script>
+    <script src="js/game.js"></script>
+    <script src="js/main.js"></script>
+</body>
+
+</html>
