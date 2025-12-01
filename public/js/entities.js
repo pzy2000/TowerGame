@@ -14,46 +14,99 @@ class Tower extends Entity {
         this.range = 150;
         this.cooldown = 0;
         this.maxCooldown = 60;
-        this.damage = 1;
+        this.damage = 10; // Default damage
         this.color = '#ffeb3b';
-        this.emoji = '🏹';
+        this.emoji = '�'; // Default emoji
         this.effect = null; // 'slow'
+
+        // Inferno Tower specific
+        this.currentTarget = null;
+        this.rampTicks = 0;
 
         if (type === 'tower_rapid') {
             this.maxCooldown = 20;
-            this.damage = 0.5;
+            this.damage = 5;
             this.range = 120;
-            this.emoji = '🔫';
+            this.emoji = '⚡';
         } else if (type === 'tower_slow') {
             this.maxCooldown = 90;
-            this.damage = 0.2;
+            this.damage = 15;
             this.range = 180;
             this.emoji = '❄️';
             this.effect = 'slow';
+        } else if (type === 'tower_inferno') {
+            this.maxCooldown = 0; // Continuous fire
+            this.damage = 1; // Base DPS (per tick damage handled in update)
+            this.emoji = '🔥';
+            this.range = 200;
         }
     }
 
     update(monsters, bullets) {
-        if (this.cooldown > 0) this.cooldown--;
-
-        if (this.cooldown <= 0) {
-            let target = null;
-            let minDist = Infinity;
-
-            for (const monster of monsters) {
-                if (monster.ownerSide === this.ownerSide) continue;
-
-                const dist = Math.hypot(monster.x - this.x, monster.y - this.y);
-                if (dist <= this.range && dist < minDist) {
-                    minDist = dist;
-                    target = monster;
+        // Inferno Tower Logic
+        if (this.type === 'tower_inferno') {
+            // Check if current target is still valid
+            if (this.currentTarget) {
+                const dist = Math.hypot(this.currentTarget.x - this.x, this.currentTarget.y - this.y);
+                if (this.currentTarget.health <= 0 || dist > this.range || this.currentTarget.markedForDeletion) {
+                    this.currentTarget = null;
+                    this.rampTicks = 0;
                 }
             }
 
-            if (target) {
-                this.shoot(target, bullets);
-                this.cooldown = this.maxCooldown;
+            // Find new target if needed
+            if (!this.currentTarget) {
+                let bestDist = this.range;
+                for (const monster of monsters) {
+                    // Only target enemies
+                    if (monster.ownerSide === this.ownerSide) continue;
+
+                    const dist = Math.hypot(monster.x - this.x, monster.y - this.y);
+                    if (dist <= this.range && dist < bestDist) {
+                        this.currentTarget = monster;
+                        bestDist = dist;
+                    }
+                }
             }
+
+            // Attack current target
+            if (this.currentTarget) {
+                this.rampTicks++;
+                // Damage doubles every 60 ticks (1 second)
+                // Base damage per tick = 1/60 (to get 1 DPS base)
+                // Multiplier = 2 ^ floor(rampTicks / 60)
+                const multiplier = Math.pow(2, Math.floor(this.rampTicks / 60));
+                const damagePerTick = (1 / 60) * multiplier;
+
+                this.currentTarget.takeDamage(damagePerTick);
+            }
+            return;
+        }
+
+        // Standard Tower Logic
+        if (this.cooldown > 0) {
+            this.cooldown--;
+            return;
+        }
+
+        // Find target
+        let target = null;
+        let minDist = this.range;
+
+        for (const monster of monsters) {
+            // Only target enemies
+            if (monster.ownerSide === this.ownerSide) continue;
+
+            const dist = Math.hypot(monster.x - this.x, monster.y - this.y);
+            if (dist <= this.range && dist < minDist) {
+                target = monster;
+                minDist = dist;
+            }
+        }
+
+        if (target) {
+            this.cooldown = this.maxCooldown;
+            this.shoot(target, bullets);
         }
     }
 
@@ -66,6 +119,26 @@ class Tower extends Entity {
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(this.emoji, this.x, this.y);
+
+        // Draw Laser for Inferno Tower
+        if (this.type === 'tower_inferno' && this.currentTarget) {
+            ctx.beginPath();
+            ctx.moveTo(this.x, this.y);
+            ctx.lineTo(this.currentTarget.x, this.currentTarget.y);
+
+            // Laser gets thicker/redder as it ramps up
+            const rampLevel = Math.floor(this.rampTicks / 60);
+            const width = Math.min(10, 2 + rampLevel);
+            const red = Math.min(255, 100 + rampLevel * 50);
+
+            ctx.lineWidth = width;
+            ctx.strokeStyle = `rgb(${red}, 50, 0)`;
+            ctx.stroke();
+
+            // Reset context
+            ctx.lineWidth = 1;
+            ctx.strokeStyle = '#000';
+        }
 
         ctx.beginPath();
         ctx.arc(this.x, this.y + 15, 5, 0, Math.PI * 2);
@@ -88,9 +161,9 @@ class Monster extends Entity {
         this.emoji = '🐰';
         this.damageToBase = 1;
 
-        // Slow effect
-        this.speedModifier = 1.0;
-        this.slowTimer = 0;
+        // Summoning ability
+        this.summonTimer = 0;
+        this.summonCooldown = 300; // 5 seconds at 60fps
 
         if (type === 'monster_tank') {
             this.baseSpeed = 0.5;
@@ -100,6 +173,14 @@ class Monster extends Entity {
             this.reward = 25;
             this.emoji = '🐼';
             this.damageToBase = 5;
+        } else if (type === 'monster_titan') {
+            this.baseSpeed = 0.25;
+            this.speed = 0.25;
+            this.health = 200;
+            this.maxHealth = 200;
+            this.reward = 100;
+            this.emoji = '👹';
+            this.damageToBase = 20;
         }
 
         if (path && path.length > 0) {
@@ -115,6 +196,15 @@ class Monster extends Entity {
             this.speedModifier = 0.5; // 50% slow
         } else {
             this.speedModifier = 1.0;
+        }
+
+        // Summoning Ability (Titan)
+        if (this.type === 'monster_titan') {
+            this.summonTimer++;
+            if (this.summonTimer >= this.summonCooldown) {
+                this.summonTimer = 0;
+                return { type: 'summon', entityType: 'monster_fast' };
+            }
         }
 
         const currentSpeed = this.baseSpeed * this.speedModifier;

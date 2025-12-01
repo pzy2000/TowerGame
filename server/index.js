@@ -51,11 +51,38 @@ io.on('connection', (socket) => {
     socket.on('game_event', (data) => {
         const { roomId, type, payload } = data;
         if (roomId && rooms.has(roomId)) {
-            // Validate side constraints (Basic validation)
-            // Ideally we should store side in room.players object but for now we trust client side ID check or just relay
-            // To be more secure, we should map socketId to side in the room object.
+            if (type === 'sync_check') {
+                const room = rooms.get(roomId);
+                // Store checksum for this tick
+                if (!room.syncState) room.syncState = {};
 
-            socket.to(roomId).emit('game_event', { type, payload, sender: socket.id });
+                const tick = payload.tick;
+                if (!room.syncState[tick]) {
+                    room.syncState[tick] = { [socket.id]: payload.checksum };
+                } else {
+                    room.syncState[tick][socket.id] = payload.checksum;
+
+                    // Check for mismatch
+                    const checksums = Object.values(room.syncState[tick]);
+                    if (checksums.length === 2) {
+                        if (checksums[0] !== checksums[1]) {
+                            console.warn(`Sync Mismatch in room ${roomId} at tick ${tick}: ${checksums[0]} vs ${checksums[1]}`);
+                            io.to(roomId).emit('game_event', {
+                                type: 'sync_mismatch',
+                                payload: { tick, serverMsg: `Mismatch detected! ${checksums[0]} vs ${checksums[1]}` }
+                            });
+                        }
+                        // Cleanup old ticks
+                        delete room.syncState[tick];
+                    }
+                }
+            } else {
+                // Validate side constraints (Basic validation)
+                // Ideally we should store side in room.players object but for now we trust client side ID check or just relay
+                // To be more secure, we should map socketId to side in the room object.
+
+                socket.to(roomId).emit('game_event', { type, payload, sender: socket.id });
+            }
         }
     });
 

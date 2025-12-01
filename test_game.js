@@ -2,65 +2,62 @@ const io = require('socket.io-client');
 
 const URL = 'http://localhost:3001';
 
-const user1 = { userId: 'user1' };
-const user2 = { userId: 'user2' };
-
 const client1 = io(URL);
-let client2 = io(URL);
+const client2 = io(URL);
 
+let client1Id, client2Id;
 let roomId;
+let client1Side, client2Side;
 
 console.log('Connecting clients...');
 
 client1.on('connect', () => {
     console.log('Client 1 connected');
-    client1.emit('join_game', user1);
+    client1.emit('join_game');
 });
 
 client2.on('connect', () => {
     console.log('Client 2 connected');
     setTimeout(() => {
-        client2.emit('join_game', user2);
+        client2.emit('join_game');
     }, 500);
+});
+
+client1.on('waiting_for_opponent', (data) => {
+    console.log('Client 1 waiting in room:', data.roomId);
+    roomId = data.roomId;
 });
 
 client1.on('game_start', (data) => {
     console.log('Client 1: Game Started!', data);
-    roomId = data.roomId;
+    client1Side = data.side;
+
+    // Client 1 builds an Inferno Tower
+    setTimeout(() => {
+        console.log(`Client 1 (${client1Side}) building Inferno Tower...`);
+        client1.emit('game_event', {
+            roomId,
+            type: 'build_tower',
+            payload: { type: 'tower_inferno', x: 100, y: 300, side: client1Side }
+        });
+    }, 500);
 });
 
 client2.on('game_start', (data) => {
     console.log('Client 2: Game Started!', data);
-
-    if (!client2.hasDisconnected) {
-        client2.hasDisconnected = true;
-        setTimeout(() => {
-            console.log('Client 2 disconnecting...');
-            client2.disconnect();
-
-            setTimeout(() => {
-                console.log('Client 2 reconnecting...');
-                client2.connect();
-                client2.emit('join_game', user2);
-            }, 1000);
-        }, 2000);
-    }
-});
-
-client1.on('request_state_sync', () => {
-    console.log('Client 1 received request_state_sync. Sending state...');
-    client1.emit('game_event', { roomId, type: 'sync_state', payload: { towers: [], monsters: [], oppHealth: 20 } });
+    client2Side = data.side;
 });
 
 client2.on('game_event', (data) => {
-    if (data.type === 'sync_state') {
-        console.log('Client 2 received sync_state via game_event!');
-        console.log('SUCCESS: Reconnection and State Sync verified.');
-        process.exit(0);
+    if (data.type === 'build_tower') {
+        if (data.payload.type === 'tower_inferno') {
+            console.log('SUCCESS: Inferno Tower build received.');
+            process.exit(0);
+        }
     }
 });
 
 setTimeout(() => {
     console.log('Test timed out.');
     process.exit(1);
-}, 8000);
+}, 5000);

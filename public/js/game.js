@@ -51,6 +51,8 @@ class Game {
     start() {
         if (!this.animationId) {
             this.lastTime = performance.now();
+            this.accumulatedTime = 0;
+            this.tick = 0;
             this.loop(this.lastTime);
         }
     }
@@ -58,21 +60,35 @@ class Game {
     loop(timestamp) {
         const dt = timestamp - this.lastTime;
         this.lastTime = timestamp;
+        this.accumulatedTime += dt;
 
-        this.update(dt);
+        const FIXED_STEP = 1000 / 60; // 60 Hz
+
+        while (this.accumulatedTime >= FIXED_STEP) {
+            this.update();
+            this.accumulatedTime -= FIXED_STEP;
+            this.tick++;
+        }
+
         this.draw();
 
         this.animationId = requestAnimationFrame((t) => this.loop(t));
     }
 
-    update(dt) {
+    update() {
+        // Fixed update, no dt needed for logic if we assume 1 tick = 1 unit of time
         this.towers.forEach(tower => tower.update(this.monsters, this.bullets));
 
         for (let i = this.monsters.length - 1; i >= 0; i--) {
             const monster = this.monsters[i];
             const result = monster.update();
 
-            if (result === 'reached_base') {
+            if (result && result.type === 'summon') {
+                // Summon new monster at titan's location
+                const summoned = new Monster(monster.x, monster.y, result.entityType, monster.path, monster.ownerSide);
+                summoned.pathIndex = monster.pathIndex; // Start where titan is
+                this.monsters.push(summoned);
+            } else if (result === 'reached_base') {
                 if (this.mySide === 'left' && monster.path === this.pathRight) {
                     this.callbacks.onBaseHit(monster.damageToBase);
                 } else if (this.mySide === 'right' && monster.path === this.pathLeft) {
@@ -97,6 +113,24 @@ class Game {
                 this.bullets.splice(i, 1);
             }
         }
+
+        // Periodic Sync Check (every 60 ticks = 1 second)
+        if (this.tick % 60 === 0) {
+            const checksum = this.getChecksum();
+            this.callbacks.onSyncCheck(this.tick, checksum);
+        }
+    }
+
+    getChecksum() {
+        // Simple checksum: Sum of all entity positions and health
+        let sum = 0;
+        this.monsters.forEach(m => {
+            sum += Math.floor(m.x) + Math.floor(m.y) + m.health;
+        });
+        this.towers.forEach(t => {
+            sum += Math.floor(t.x) + Math.floor(t.y);
+        });
+        return sum;
     }
 
     draw() {

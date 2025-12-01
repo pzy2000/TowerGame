@@ -25,8 +25,10 @@ const COSTS = {
     tower_basic: 50,
     tower_rapid: 120,
     tower_slow: 150,
+    tower_inferno: 200,
     monster_fast: 30,
-    monster_tank: 80
+    monster_tank: 80,
+    monster_titan: 200
 };
 
 const game = new Game(canvas, {
@@ -49,6 +51,11 @@ const game = new Game(canvas, {
     onMonsterKilled: (reward) => {
         myResource += reward;
         updateUI();
+    },
+    onSyncCheck: (tick, checksum) => {
+        if (isGameActive) {
+            socket.emit('game_event', { roomId, type: 'sync_check', payload: { tick, checksum } });
+        }
     }
 });
 
@@ -123,7 +130,7 @@ socket.on('game_start', (data) => {
 
     setInterval(() => {
         if (isGameActive) {
-            myResource += 1;
+            myResource += 5;
             updateUI();
         }
     }, 1000);
@@ -169,5 +176,8 @@ socket.on('game_event', (data) => {
         // Don't end game immediately, allow reconnect
     } else if (data.type === 'sync_state') {
         // Handled above
+    } else if (data.type === 'sync_mismatch') {
+        console.warn(`Sync Mismatch at tick ${data.payload.tick}! Server says: ${data.payload.serverMsg}`);
+        showFloatingText("Sync Error!", window.innerWidth / 2, 50);
     }
 });
