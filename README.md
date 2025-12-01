@@ -1,5 +1,7 @@
 # Cute Tower Defense 🏰🐰
 
+[English](README.md) | [中文](README_CN.md)
+
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Node.js](https://img.shields.io/badge/node-%3E%3D14.0.0-green.svg)
 ![Socket.IO](https://img.shields.io/badge/Socket.IO-Realtime-black)
